@@ -2,6 +2,8 @@
 
 A 3D, Subway Surfers-style endless runner for the browser, built by a coding agent with [Atomic](https://github.com/bastani-inc/atomic) while we talked about it on a livestream.
 
+![Gameplay: Nova runs the tracks, jumps, threads between graffiti trains, stumbles, and gets caught by Officer Brask and Volt](docs/media/gameplay.gif)
+
 > **Built live on The Neuron.** This game was built in the background during the livestream [*Test and verification engineering for agentic coding*](https://www.youtube.com/live/AceHMOZJSeM?si=y31PD6Sy4DfGo_B4) with Alex Lavaee (Research Engineer, Microsoft Research's Catalyst Lab). The stream asks a practical question: when AI coding agents can build increasingly complex software on their own, how do you prove they actually did the job correctly? While the conversation covered testing, verification, and reliable agentic workflows, Atomic, an open-source verifiable coding agent runtime, worked on this game.
 
 > **Not affiliated with Subway Surfers.** This is an unofficial fan project in the same genre. *Subway Surfers* is a trademark of SYBO Games. Neon Rail Rush uses only original characters (Nova the courier, Officer Brask the train inspector, and Volt his robo-hound), original art, and original code. No Subway Surfers assets, names, or likenesses are used.
@@ -20,6 +22,12 @@ The run was stopped partway through, so this repository holds a playable but unf
 | Neon city, camera occlusion handling, 60 fps tuning | ⏳ Not started |
 
 The playable build still uses simple placeholder shapes for characters and obstacles.
+
+| Running the tracks | Between two trains |
+| --- | --- |
+| ![Nova running down the middle track toward a coin line, with the score HUD in the corner](docs/media/running.png) | ![Nova running in the gap between two graffiti-covered trains](docs/media/between-trains.png) |
+
+The GIF and screenshots were captured from the committed build in Chrome (1280×577 page area), with the developer panels hidden (H). The run ends in a barrier crash, so the chasers catch Nova at the end.
 
 ## Play it
 
