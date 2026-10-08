@@ -2,7 +2,9 @@
 
 A 3D, Subway Surfers-style endless runner for the browser, built by a coding agent with [Atomic](https://github.com/bastani-inc/atomic) while we talked about it on a livestream.
 
-![Gameplay: Nova runs the tracks, jumps, threads between graffiti trains, stumbles, and gets caught by Officer Brask and Volt](docs/media/gameplay.gif)
+<p align="center">
+  <img src="docs/media/gameplay.gif" width="640" alt="Gameplay: Nova runs the tracks, jumps, threads between graffiti trains, stumbles, and gets caught by Officer Brask and Volt">
+</p>
 
 > **Built live on The Neuron.** This game was built in the background during the livestream [*Test and verification engineering for agentic coding*](https://www.youtube.com/live/AceHMOZJSeM?si=y31PD6Sy4DfGo_B4) with Alex Lavaee (Research Engineer, Microsoft Research's Catalyst Lab). The stream asks a practical question: when AI coding agents can build increasingly complex software on their own, how do you prove they actually did the job correctly? While the conversation covered testing, verification, and reliable agentic workflows, Atomic, an open-source verifiable coding agent runtime, worked on this game.
 
