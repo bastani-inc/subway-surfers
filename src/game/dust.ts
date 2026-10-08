@@ -30,7 +30,7 @@ export class DustBursts {
     }
   }
 
-  emit(x: number, z: number): void {
+  emit(x: number, z: number, y = 0): void {
     this.bursts++;
     for (let i = 0; i < PUFFS_PER_LANDING; i++) {
       const puff = this.puffs[this.next];
@@ -40,7 +40,7 @@ export class DustBursts {
       puff.vx = Math.cos(angle) * 1.6;
       puff.vz = Math.sin(angle) * 1.6;
       puff.vy = 0.9;
-      puff.mesh.position.set(x + Math.cos(angle) * 0.2, 0.08, z + Math.sin(angle) * 0.2);
+      puff.mesh.position.set(x + Math.cos(angle) * 0.2, y + 0.08, z + Math.sin(angle) * 0.2);
       puff.mesh.visible = true;
     }
   }

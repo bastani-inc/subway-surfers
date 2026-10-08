@@ -44,6 +44,10 @@ export interface RunnerPose {
   lateralVelocity: number;
   ready: boolean;
   time: number;
+  groundY: number;
+  stumble: number;
+  fall: number;
+  crashed: boolean;
 }
 
 interface Leg {
@@ -154,13 +158,16 @@ export class RunnerModel {
   update(pose: RunnerPose): void {
     this.root.position.set(pose.x, pose.y, pose.z);
     const lean = THREE.MathUtils.clamp(-pose.lateralVelocity * LEAN_PER_VELOCITY, -MAX_LEAN, MAX_LEAN);
-    this.root.rotation.z = pose.rollTimeLeft > 0 && !pose.ready ? 0 : lean;
-    this.blobShadow.position.set(pose.x, 0.015, pose.z);
-    const fade = 1 / (1 + pose.y * 0.6);
+    this.root.rotation.z = (pose.rollTimeLeft > 0 && !pose.ready) || pose.crashed ? 0 : lean;
+    this.root.rotation.x = 0;
+    this.blobShadow.position.set(pose.x, pose.groundY + 0.015, pose.z);
+    const fade = 1 / (1 + Math.max(0, pose.y - pose.groundY) * 0.6);
     this.blobShadow.scale.setScalar(fade);
     (this.blobShadow.material as THREE.MeshBasicMaterial).opacity = 0.75 * fade;
 
     if (pose.ready) this.poseReady(pose.time);
+    else if (pose.crashed) this.poseFall(pose.fall, pose.time);
+    else if (pose.stumble > 0 && pose.grounded) this.poseStumble(pose.stumble, pose.distance);
     else if (pose.rollTimeLeft > 0) this.poseRoll(1 - pose.rollTimeLeft / ROLL_DURATION);
     else if (!pose.grounded) this.poseAir(pose.vy);
     else this.poseRun(pose.distance);
@@ -202,6 +209,28 @@ export class RunnerModel {
     const tilt = -0.12;
     this.setLimbs(swing, -swing, -swing * 1.1, swing * 1.1, tilt);
     this.hips.position.y = this.plantedHipHeight(swing, -swing, tilt);
+  }
+
+  private poseStumble(progress: number, distance: number): void {
+    const phase = (distance / STRIDE_LENGTH) * Math.PI * 2;
+    const swing = Math.sin(phase) * SWING * 0.6;
+    const pitch = Math.sin(progress * Math.PI);
+    const tilt = -0.12 - 0.4 * pitch;
+    this.setLimbs(swing, -swing, -2.2 * pitch, -1.6 * pitch, tilt);
+    this.leftArm.rotation.z = -0.6 * pitch;
+    this.rightArm.rotation.z = 0.6 * pitch;
+    this.hips.position.y = this.plantedHipHeight(swing, -swing, tilt);
+  }
+
+  private poseFall(fall: number, time: number): void {
+    const flail = Math.sin(time * 18) * 0.3 * (1 - fall);
+    this.setLimbs(-0.5 * fall, 0.3 * fall, -2.4 + flail, -2.1 - flail, 0);
+    this.leftArm.rotation.z = -0.5;
+    this.rightArm.rotation.z = 0.5;
+    this.hips.position.y = HIP_HEIGHT;
+    this.root.rotation.x = fall * (Math.PI / 2 - 0.12);
+    const lowest = this.lowestPointAboveRoot();
+    if (lowest < 0) this.root.position.y -= lowest;
   }
 
   private poseAir(vy: number): void {

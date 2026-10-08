@@ -21,7 +21,7 @@ Ship **Neon Rail Rush**: an endless three-lane runner along subway tracks in a n
 | id | Asset | Design notes |
 | --- | --- | --- |
 | runner | Nova, the player | Teen courier with a teal asymmetric bob, reflective cropped orange windbreaker, black cargo shorts, knee pads, chunky LED sneakers. Full body, A-pose. |
-| guard | Officer Brask, the train inspector | Stocky cartoon train inspector in an original design: teal conductor-style jacket with brass buttons and orange piping, round peaked cap with a lightning-bolt badge, thick mustache, whistle on a lanyard, chunky boots. Full body, A-pose. |
+| guard | Officer Brask, the train inspector | Stocky cartoon train inspector in an original design: teal conductor-style jacket with brass buttons and orange piping, round peaked cap with a lightning-bolt badge, tall lanky build, clean-shaven long face with grey sideburns and round glasses, whistle on a lanyard, chunky boots. Full body, A-pose. |
 | dog | Volt, the inspector's robo-hound | Chunky cartoon robot hound, round white body panels, stubby legs, big friendly LED eyes, cyan light strips. |
 | train | Subway car | Long, boxy cartoon subway car, cream and red with colorful abstract graffiti tags (no readable letters), flat roof you can run on, a slanted ramp car variant implied. |
 | barrier_low | Low hazard barrier | Striped barrier, waist height: the runner jumps over it. |

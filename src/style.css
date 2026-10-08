@@ -83,3 +83,115 @@ body {
     transform: scale(1.06);
   }
 }
+#hud {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 6;
+  font-family: 'Avenir Next', 'Trebuchet MS', system-ui, sans-serif;
+  font-weight: 900;
+  color: #fff6d8;
+  text-shadow: 0 3px 0 #7a2bb8, 0 6px 14px rgba(20, 0, 50, 0.55);
+}
+#hud[hidden] {
+  display: none;
+}
+.hud-score {
+  font-size: clamp(28px, 4.5vw, 44px);
+  font-variant-numeric: tabular-nums;
+}
+.hud-multiplier {
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: #18d6c4;
+  color: #10082a;
+  font-size: 16px;
+  text-shadow: none;
+}
+.hud-best {
+  font-size: 14px;
+  opacity: 0.85;
+}
+#game-over {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 40%, rgba(122, 43, 184, 0.35), rgba(16, 8, 42, 0.7));
+  z-index: 8;
+  font-family: 'Avenir Next', 'Trebuchet MS', system-ui, sans-serif;
+}
+#game-over[hidden] {
+  display: none;
+}
+.game-over-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 26px 44px 30px;
+  border-radius: 22px;
+  background: linear-gradient(170deg, #2b1468, #4b1d8c);
+  border: 3px solid #ff4fd8;
+  box-shadow: 0 10px 0 #18d6c4, 0 20px 40px rgba(0, 0, 0, 0.45);
+  color: #fff6d8;
+  text-align: center;
+}
+.game-over-title {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 900;
+  font-style: italic;
+  text-shadow: 0 4px 0 #ff2f8f;
+}
+.game-over-subtitle {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #9ffcff;
+}
+.game-over-label {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.game-over-score {
+  font-size: 52px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.game-over-new-best {
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: #ffd21a;
+  color: #2b1468;
+  font-weight: 900;
+}
+.game-over-new-best[hidden] {
+  display: none;
+}
+.game-over-best {
+  font-size: 18px;
+  font-weight: 800;
+}
+.game-over-restart {
+  margin-top: 12px;
+  padding: 12px 34px;
+  border: none;
+  border-radius: 999px;
+  background: #ff7a1a;
+  color: #10082a;
+  font: inherit;
+  font-size: 22px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #b44a00;
+}
+.game-over-restart:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #b44a00;
+}

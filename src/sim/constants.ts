@@ -32,3 +32,31 @@ export const jumpApexHeight = (velocity = JUMP_VELOCITY, gravity = GRAVITY): num
 
 export const jumpAirtime = (velocity = JUMP_VELOCITY, gravity = GRAVITY): number =>
   (2 * velocity) / gravity;
+
+export const STEP_UP = 0.3;
+
+export const TRAIN_WIDTH = 2.0;
+export const TRAIN_HEIGHT = 3.2;
+export const TRAIN_LENGTH = 12;
+export const TRAIN_COUPLING_GAP = 0.4;
+export const ONCOMING_SPEED = 10;
+export const ONCOMING_ACTIVATION_DISTANCE = 70;
+export const ONCOMING_CLEARANCE = 36;
+
+export const BARRIER_LOW_WIDTH = 2.0;
+export const BARRIER_LOW_HEIGHT = 1.0;
+export const BARRIER_LOW_DEPTH = 0.35;
+
+export const GANTRY_WIDTH = 2.1;
+export const GANTRY_HEIGHT = 2.5;
+export const GANTRY_CLEARANCE = 1.15;
+export const GANTRY_POST_WIDTH = 0.14;
+export const GANTRY_DEPTH = 0.3;
+
+export const KNOCKBACK_VZ = 7;
+export const KNOCKBACK_VY = 5.5;
+export const KNOCKBACK_FRICTION = 14;
+export const FALL_SECONDS = 0.45;
+export const STUMBLE_SECONDS = 0.45;
+export const SCRAPE_BOUNCE_VX = 5;
+export const GAME_OVER_DELAY = 0.9;

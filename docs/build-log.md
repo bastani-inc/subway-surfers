@@ -36,3 +36,36 @@ public/models/, assets/ and live/ were not touched.
 - fps (minor): Playwright now launches Chromium with Metal ANGLE GPU flags (`--use-angle=metal --ignore-gpu-blocklist --enable-gpu-rasterization`), so headless runs render on the Apple M4 Max GPU. The fps assertion went from > 20 to > 55 for every sample.
 
 **Verified:** `npm run check` passed: typecheck, 11 unit tests, the build, and 6 Chromium e2e tests. Over 3.03 s the simulation ran 60.0 steps/s, and all fps samples were 60.0. During a manual Playwright roll capture (screenshots in `test-results/repair-core/roll-*.png`), model minY stayed at about 0 and maxY was 0.52–0.67 m while rolling. The screenshots show the somersault on the track with its shadow.
+
+## 2026-10-08 — slice "obstacles"
+
+**Done:** Added the obstacle slice on top of the core scaffold.
+- Data-driven obstacles: `src/sim/obstacleDefs.ts` defines every kind in one place, each with a model id, size and per-part axis-aligned colliders. The kinds are train (2.0 × 3.2 × 12 m, walkable roof), ramp car (sloped surface from 0 to 3.2 m), low barrier (1.0 m, jump over) and gantry (two posts plus a sign whose underside is at 1.15 m, roll under). Placeholder meshes in `src/game/obstacleView.ts` are built from the same sizes. Trains have abstract graffiti and no letters. Every mesh casts shadows and sits on a soft contact shadow. With the dev panel on, collider wireframes (the ramp drawn as a wedge) show for every part.
+- Seeded procedural spawner with object pooling (`src/sim/spawner.ts`). It starts after a 70 m clear runway. Patterns are train groups across lanes (a ramp car followed by 1–2 cars, stationary or oncoming trains, at least one lane always open or reachable by ramp), barrier rows and pairs, and mixed. An oncoming train only starts moving within 70 m of the runner, and only spawns in a lane that is clear ahead of it. Meshes are pooled per kind.
+- Collisions (`src/sim/collision.ts`, `src/sim/world.ts`): each hit is classified by the axis the runner entered on. Entering along z is a front-on crash. Entering along x is a side scrape: the runner bounces back to the previous lane and stumbles. Entering from above onto a walkable top is a roof landing; onto a barrier top it is a clip, which counts as a stumble. A support probe lets the runner run up ramps, along roofs and across coupling gaps, and fall off the end with gravity.
+- Chase state machine (`src/sim/chase.ts`): Officer Brask and Volt (original placeholder models in `src/game/chasers.ts`) start 1.6 m behind the runner. After 1.6 s they drop back out of view. A stumble brings them close for 4 s, and a second stumble in that window is a catch. After a crash or catch, the runner gets a backward impulse (vz = +7, vy = +5.5), falls, and slides to a stop. The chasers run in, then 0.9 s later the game-over screen appears with score, best and "Run again". The camera rises and pulls back during the crash.
+- Score = floor(distance × multiplier) + coins. The high score persists in localStorage under `neonRailRush.highScore`. The speed ramp keeps its ease-out curve to the cap, now covered by tests. Added a HUD and the stumble and crash SFX.
+- `window.__game` now also exposes score, highScore, storedHighScore, crash, lastHit, hitCounts, chase, obstacles (collider and mesh bounds), spawner, gameOverVisible and hudVisible. It also has a `debug` object for test setup (`spawnObstacle`, `clearObstacles`, `setSpawning`). `?spawns=off` and `?seed=N` URL parameters keep tests deterministic, and the core e2e tests now use `?spawns=off`.
+- live/, public/models/ and assets/ were not touched.
+
+**Verified:** `npm run check` passed: typecheck, 42 unit tests (31 new across collision, chase, score and spawner), the build, and 11 Chromium e2e tests (5 new). The new e2e tests cover:
+- colliders matching mesh bounds within 0.06 m, and obstacles resting at y≈0 with shadows
+- the chasers' intro and drop-back
+- a forced front-on crash: knockback (z rises by more than 0.5 m and y by more than 0.3 m) happens before the catch, then the game-over screen, the stored high score, restart, and the best surviving a page reload
+- a side scrape bouncing back with the chasers in view, then a second stumble catching the runner
+- climbing a ramp onto a roof at y = 3.2
+
+The fps samples were all 60.0, and the simulation ran 59.8 steps/s. Screenshots in `test-results/obstacles/` show the collider overlay, the close chase, the roof run and the game-over screen.
+
+## 2026-10-08 — Blender cleanup of the Hunyuan3D models
+
+**Done:**
+- `scripts/blender/cleanup_models.py` (run `blender -b --python scripts/blender/cleanup_models.py [-- <id> ...]`) does the whole cleanup for all 13 raw GLBs. For each one it imports the GLB, welds verts (merge by distance), removes slabs and loose fragments, caps holes, recalculates normals, decimates (characters ≤ 30k triangles, props ≤ 8k), turns the model to face -Z (trains run along Z), scales it to metres, puts the origin at the bottom center (y = 0), keeps only the base-color texture (packed JPEG: 2048 for characters and the train, 1024 for the rest), and exports `public/models/<id>.glb`. It then re-imports the export, measures it, renders `assets/renders/<id>.png` (Eevee, three-quarter front view, shadowed ground) and writes `assets/manifest.json`.
+- Fixes for individual assets: the multiplier token sat between two square background plates, which were removed and the token back capped. The coin was fused onto a square plate; the script finds the cyan rim in the texture, fits an octagon to it, and bisects the plate away. A ground plate was fused around the guard's boots; it was cut and the soles capped. The gantry's feet were skewed 26.6° in plan, so it was straightened, and its posts were compressed so the beam's underside is at 1.20 m (between the 0.8 m roll height and the 1.7 m standing height). The low barrier was squashed to 2.0 × 1.0 m.
+- Sizes: runner 1.7 m, guard 1.9 m, dog 0.85 m, train 2.0 × 3.2 × 12 m (non-uniform fit), coin 0.6 m, pickups 0.7–0.9 m, building_a 36 m, building_b 24 m.
+- Manifest parts: barrier_high has `beam`, `postLeft` and `postRight`; train has `body` (y up to 2.95) and `roof` (2.95–3.2); everything else has a single `body`. Nothing is a stand-in: every raw mesh existed.
+- `scripts/blender/verify_models.py` checks each export independently. `scripts/blender/probe_raw.py` is a diagnostic tool for raw meshes (island stats and four-side views).
+
+**Verified:** I ran the pipeline from scratch (deleted the outputs first): exit 0, no tracebacks. `verify_models.py` passed 13/13. It confirmed that the triangle counts and bounds re-measured from each GLB match the manifest, that every model is within its budget, that min y = 0, that the origin is bottom center, that the packed texture is present and that the render exists. Open edges remaining: guard 4, building_b 2, all others 0. I looked at every render myself. Each model is upright, faces the right way, is textured and casts a shadow, and none has a slab left.
+
+**Notes for the game:** fronts face -Z (the run direction), so pickups and barriers show their back to the chase camera. Rotate them by π in the game if their front should face the camera. building_b's neon signs have letter-like squiggles from Hunyuan. The guard's face texture is rough. The runner is not rigged yet.

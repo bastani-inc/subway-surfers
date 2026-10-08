@@ -10,7 +10,7 @@ const startRun = async (page: Page) => {
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?spawns=off');
   await page.waitForFunction(() => (window as any).__game?.simSteps > 30);
 });
 
@@ -114,7 +114,7 @@ test('runner is grounded on the track and casts a shadow', async ({ page }) => {
   expect(await game<number>(page, 'g.runner.position.y')).toBe(0);
   expect(await game<number>(page, 'g.runner.collider.bottomY')).toBe(0);
   const shadows = await game<Record<string, boolean>>(page, 'g.shadows');
-  expect(shadows).toEqual({ enabled: true, lightCastsShadow: true, runnerCastsShadow: true, blobShadowVisible: true });
+  expect(shadows).toMatchObject({ enabled: true, lightCastsShadow: true, runnerCastsShadow: true, blobShadowVisible: true });
   const cam = await game<{ position: { y: number; z: number } }>(page, 'g.camera');
   const runnerZ = await game<number>(page, 'g.runner.position.z');
   expect(cam.position.y).toBeGreaterThan(1.5);
