@@ -2,6 +2,11 @@
 
 A 3D, Subway Surfers-style endless runner for the browser, built by a coding agent with [Atomic](https://github.com/bastani-inc/atomic) while we talked about it on a livestream.
 
+> [!IMPORTANT]
+> **Built with [Atomic](https://github.com/bastani-inc/atomic), the open-source verifiable coding agent runtime.**
+> One Atomic workflow wrote the game code in this repository and generated its concept art, 3D models, and motion-captured run (the models aren't committed yet; see [Status](#status-work-in-progress)). Each step had to pass its checks before it reached the screen or the repository.
+> Read the workflow in [`.atomic/workflows/neon-rail-rush.ts`](.atomic/workflows/neon-rail-rush.ts), see [how it was built](#how-it-was-built) and [how the agent's work was verified](#how-the-agents-work-was-verified), or start with Atomic at [github.com/bastani-inc/atomic](https://github.com/bastani-inc/atomic).
+
 <p align="center">
   <img src="docs/media/gameplay.gif" width="640" alt="Gameplay: Nova runs the tracks, jumps, threads between graffiti trains, stumbles, and gets caught by Officer Brask and Volt">
 </p>
@@ -53,6 +58,8 @@ Then open the URL Vite prints (usually http://localhost:5173).
 ## How it was built
 
 Atomic ran this as one workflow, defined in [`.atomic/workflows/neon-rail-rush.ts`](.atomic/workflows/neon-rail-rush.ts). The project brief that every stage worked from is [`docs/brief.md`](docs/brief.md).
+
+To write a workflow like this for your own project, see Atomic's [workflow docs](https://github.com/bastani-inc/atomic/blob/main/packages/coding-agent/docs/workflows.md).
 
 1. **Concept art.** Each character, prop, and the city skyline was drawn by OpenAI's `gpt-image-2.5-flare`, called through the Images API.
 2. **3D models.** Each image became a textured 3D model through [Hunyuan3D-2.1](https://huggingface.co/spaces/tencent/Hunyuan3D-2.1) on Hugging Face.
