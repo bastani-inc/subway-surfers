@@ -1,23 +1,43 @@
-import { GAME_OVER_DELAY, SCRAPE_BOUNCE_VX, STEP_UP } from './constants';
+import {
+  GAME_OVER_DELAY,
+  JETPACK_ALTITUDE,
+  JETPACK_LANDING_GRACE,
+  JUMP_VELOCITY,
+  ROLL_DURATION,
+  SCORE_MULTIPLIER,
+  SCRAPE_BOUNCE_VX,
+  SNEAKERS_JUMP_VELOCITY,
+  STEP_UP,
+} from './constants';
 import { beginCatch, createChase, registerStumble, stepChase, type ChaseState } from './chase';
 import { boxOfCollider, classifyHit, footprintOverlaps, overlaps, partBox, type Box, type HitKind } from './collision';
 import { OBSTACLE_DEFS, halfLengthOf, type ObstacleKind, type PartDef } from './obstacleDefs';
+import { POWER_UP_DURATIONS, POWER_UP_KINDS, Pickups, type PowerUpKind } from './pickups';
 import {
   bounceToPreviousLane,
   colliderOf,
   createRunner,
+  endFlight,
+  isFlying,
+  jump,
   knockBack,
+  roll,
   stepKnockedBack,
   stepRunner,
   stumble,
+  takeOff,
   type RunnerState,
 } from './runner';
-import { computeScore, HighScoreStore } from './score';
+import { HighScoreStore } from './score';
 import { Spawner, type Obstacle } from './spawner';
 
 export type WorldState = 'ready' | 'running' | 'crashed' | 'gameover';
 export type CrashCause = 'frontCrash' | 'secondStumble';
-export type WorldEvent = 'stumble' | 'crash' | 'roof' | 'gameover';
+export type WorldEvent = 'stumble' | 'crash' | 'roof' | 'gameover' | 'coin' | 'powerUp' | 'powerUpEnd' | 'jetpackLanded';
+
+export type PowerUpTimers = Record<PowerUpKind, number>;
+
+const noPowerUps = (): PowerUpTimers => ({ jetpack: 0, sneakers: 0, magnet: 0, multiplier: 0 });
 
 export interface HitRecord {
   kind: HitKind;
@@ -39,11 +59,17 @@ export class World {
   readonly runner: RunnerState = createRunner();
   readonly chase: ChaseState = createChase();
   readonly spawner: Spawner;
+  readonly pickups: Pickups;
+  readonly powerUps: PowerUpTimers = noPowerUps();
+  readonly powerUpDurations: PowerUpTimers = { ...POWER_UP_DURATIONS };
   readonly highScores: HighScoreStore;
   state: WorldState = 'ready';
   score = 0;
   coins = 0;
   multiplier = 1;
+  distancePoints = 0;
+  jetpackLanding = false;
+  landingGrace = 0;
   time = 0;
   crashCause: CrashCause | null = null;
   crashTime = 0;
@@ -55,6 +81,7 @@ export class World {
 
   constructor(options: WorldOptions = {}) {
     this.spawner = new Spawner(options.seed ?? 1, options.spawning ?? true);
+    this.pickups = new Pickups(options.seed ?? 1, options.spawning ?? true);
     this.highScores = options.highScores ?? new HighScoreStore(null);
   }
 
@@ -66,10 +93,16 @@ export class World {
     Object.assign(this.runner, createRunner());
     Object.assign(this.chase, createChase());
     this.spawner.reset(seed);
+    this.pickups.reset(seed);
+    Object.assign(this.powerUps, noPowerUps());
+    Object.assign(this.powerUpDurations, POWER_UP_DURATIONS);
     this.state = 'running';
     this.score = 0;
     this.coins = 0;
     this.multiplier = 1;
+    this.distancePoints = 0;
+    this.jetpackLanding = false;
+    this.landingGrace = 0;
     this.crashCause = null;
     this.crashTime = 0;
     this.newHighScore = false;
@@ -87,15 +120,89 @@ export class World {
     else if (this.state === 'crashed') this.stepCrashed(dt);
   }
 
+  get invulnerable(): boolean {
+    return isFlying(this.runner) || this.jetpackLanding || this.landingGrace > 0;
+  }
+
+  get jumpVelocity(): number {
+    return this.powerUps.sneakers > 0 ? SNEAKERS_JUMP_VELOCITY : JUMP_VELOCITY;
+  }
+
+  jump(): boolean {
+    return this.state === 'running' && jump(this.runner, this.jumpVelocity);
+  }
+
+  roll(): boolean {
+    return this.state === 'running' && roll(this.runner);
+  }
+
+  grantPowerUp(kind: PowerUpKind, duration = POWER_UP_DURATIONS[kind]): void {
+    this.powerUps[kind] = duration;
+    this.powerUpDurations[kind] = duration;
+    if (kind === 'multiplier') this.multiplier = SCORE_MULTIPLIER;
+    if (kind === 'jetpack') {
+      this.jetpackLanding = false;
+      takeOff(this.runner, JETPACK_ALTITUDE);
+      this.pickups.spawnSkyTrail(this.runner.lane, this.runner.z - 14, Math.max(20, this.runner.speed * duration - 18));
+    }
+  }
+
+  private expirePowerUp(kind: PowerUpKind): void {
+    this.powerUps[kind] = 0;
+    if (kind === 'multiplier') this.multiplier = 1;
+    if (kind === 'jetpack') {
+      endFlight(this.runner);
+      this.jetpackLanding = true;
+    }
+    this.events.push('powerUpEnd');
+  }
+
+  private stepPowerUps(dt: number): void {
+    for (const kind of POWER_UP_KINDS) {
+      if (this.powerUps[kind] <= 0) continue;
+      this.powerUps[kind] = Math.max(0, this.powerUps[kind] - dt);
+      if (this.powerUps[kind] === 0) this.expirePowerUp(kind);
+    }
+  }
+
+  private stepLanding(dt: number): void {
+    if (this.landingGrace > 0) this.landingGrace = Math.max(0, this.landingGrace - dt);
+    if (this.jetpackLanding && this.runner.grounded) {
+      this.jetpackLanding = false;
+      this.landingGrace = JETPACK_LANDING_GRACE;
+      this.events.push('jetpackLanded');
+    }
+  }
+
+  private collectPickups(dt: number): void {
+    for (const pickup of this.pickups.collect(colliderOf(this.runner), this.powerUps.magnet > 0, dt)) {
+      if (pickup.type === 'coin') {
+        this.coins++;
+        this.events.push('coin');
+      } else if (pickup.kind) {
+        this.grantPowerUp(pickup.kind);
+        this.events.push('powerUp');
+      }
+    }
+  }
+
   private stepRunning(dt: number): void {
     const r = this.runner;
     this.spawner.update(r.z, r.speed);
     this.spawner.moveObstacles(r.z, dt);
+    this.pickups.update(r.z, r.speed, this.spawner.active, !isFlying(r));
     const before = boxOfCollider(colliderOf(r));
+    const distanceBefore = r.distance;
     stepRunner(r, dt, this.supportAt);
+    this.distancePoints += (r.distance - distanceBefore) * this.multiplier;
+    this.stepPowerUps(dt);
+    this.stepLanding(dt);
     stepChase(this.chase, dt);
     this.resolveCollisions(before);
-    if (this.state === 'running') this.score = computeScore(r.distance, this.multiplier, this.coins);
+    if (this.state !== 'running') return;
+    this.stepLanding(0);
+    this.collectPickups(dt);
+    this.score = Math.floor(this.distancePoints) + this.coins;
   }
 
   private stepCrashed(dt: number): void {
@@ -151,13 +258,21 @@ export class World {
 
   private applyHit(kind: HitKind, o: Obstacle, part: PartDef, box: Box): void {
     const r = this.runner;
-    if (kind === 'roof') {
-      this.record(kind, o, part);
+    if (kind === 'roof' || (this.jetpackLanding && part.surface !== 'solid')) {
+      this.record('roof', o, part);
       r.y = box.maxY;
       r.vy = 0;
       r.grounded = true;
       r.landings++;
+      if (r.rollQueued) {
+        r.rollQueued = false;
+        r.rollTimeLeft = ROLL_DURATION;
+      }
       this.events.push('roof');
+      return;
+    }
+    if (this.invulnerable) {
+      o.passThrough = true;
       return;
     }
     if (kind === 'crash') {

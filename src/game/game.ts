@@ -5,15 +5,18 @@ import {
   JUMP_VELOCITY,
   LANE_WIDTH,
   MAX_SPEED,
+  COIN_HEIGHT,
   ROLL_DURATION,
   SIM_HZ,
+  SNEAKERS_JUMP_VELOCITY,
   STAND_HEIGHT,
   STUMBLE_SECONDS,
 } from '../sim/constants';
 import { chaseVisible } from '../sim/chase';
 import { FixedStepper } from '../sim/fixedStep';
 import { OBSTACLE_DEFS, type ObstacleKind } from '../sim/obstacleDefs';
-import { changeLane, colliderOf, isRolling, jump, roll, type RunnerState } from '../sim/runner';
+import { POWER_UP_DURATIONS, POWER_UP_KINDS, type Coin, type CoinShape, type PowerUpKind } from '../sim/pickups';
+import { changeLane, colliderOf, isFlying, isRolling, type RunnerState } from '../sim/runner';
 import { HighScoreStore } from '../sim/score';
 import { FIRST_PATTERN_DISTANCE } from '../sim/spawner';
 import { World, type WorldState } from '../sim/world';
@@ -23,7 +26,10 @@ import { DustBursts } from './dust';
 import { FpsMeter } from './fpsMeter';
 import { GameOverScreen, Hud } from './hud';
 import { bindInput, type Action } from './input';
+import { JetpackRig } from './jetpackRig';
 import { ObstacleView } from './obstacleView';
+import { PickupFx } from './pickupFx';
+import { POWER_UP_COLORS, PickupView } from './pickupView';
 import { RunnerModel } from './runnerModel';
 import { Sfx } from './sfx';
 import { StartScreen } from './startScreen';
@@ -39,6 +45,9 @@ const RESTART_LOCKOUT_SECONDS = 0.5;
 const CRASH_CAMERA_RAISE = 1.8;
 const CRASH_CAMERA_PULLBACK = 1.6;
 const CRASH_CAMERA_RATE = 3;
+const HEIGHT_PULLBACK = 0.35;
+const POWER_UP_LABELS: Record<PowerUpKind, string> = { jetpack: 'Jetpack', sneakers: 'Sneakers', magnet: 'Magnet', multiplier: 'x2 Score' };
+const cssColor = (hex: number) => `#${hex.toString(16).padStart(6, '0')}`;
 
 export type GameState = WorldState;
 
@@ -89,6 +98,9 @@ export class Game {
   readonly colliderHelper: THREE.Box3Helper;
   readonly cameraTarget = new THREE.Vector3();
   readonly dust = new DustBursts();
+  readonly pickupView = new PickupView();
+  readonly pickupFx = new PickupFx();
+  readonly jetpackRig = new JetpackRig();
   readonly sfx = new Sfx();
   readonly startScreen: StartScreen;
   readonly hud: Hud;
@@ -97,6 +109,7 @@ export class Game {
   private readonly colliderBox = new THREE.Box3();
   private readonly projected = new THREE.Vector3();
   private landingsSeen = 0;
+  private fxZ = 0;
   private clock = 0;
   private gameOverAt = 0;
   private crashView = 0;
@@ -143,6 +156,9 @@ export class Game {
       this.runnerModel.root,
       this.runnerModel.blobShadow,
       this.dust.group,
+      this.pickupView.group,
+      this.pickupFx.group,
+      this.jetpackRig.group,
     );
 
     this.colliderHelper = new THREE.Box3Helper(this.colliderBox, new THREE.Color(0x39ff6a));
@@ -210,11 +226,10 @@ export class Game {
         changeLane(this.runner, 1);
         break;
       case 'jump':
-        if (jump(this.runner)) this.sfx.play('jump');
+        if (this.world.jump()) this.sfx.play('jump');
         break;
       case 'roll':
-        roll(this.runner);
-        this.sfx.play('roll');
+        if (this.world.roll()) this.sfx.play('roll');
         break;
     }
   }
@@ -224,6 +239,7 @@ export class Game {
     this.world.restart(this.options.fixedSeed ? this.options.seed : Math.floor(Math.random() * 2 ** 31));
     this.runs++;
     this.landingsSeen = 0;
+    this.fxZ = 0;
     this.gameOver.hide();
     this.hud.visible = true;
     this.chasers.snap();
@@ -240,8 +256,14 @@ export class Game {
       this.landingsSeen = r.landings;
       this.dust.emit(r.x, r.z, r.y);
     }
+    for (const pickup of this.world.pickups.drainCollected()) {
+      if (pickup.type === 'coin') this.pickupFx.coin(pickup.x, pickup.y, pickup.z);
+      else if (pickup.kind) this.pickupFx.powerUp(pickup.x, pickup.y, pickup.z, POWER_UP_COLORS[pickup.kind]);
+    }
     for (const event of this.world.drainEvents()) {
-      if (event === 'stumble') this.sfx.play('stumble');
+      if (event === 'coin') this.sfx.play('coin');
+      else if (event === 'powerUp') this.sfx.play('powerUp');
+      else if (event === 'stumble') this.sfx.play('stumble');
       else if (event === 'crash') this.sfx.play('crash');
       else if (event === 'gameover') this.showGameOver();
     }
@@ -290,7 +312,12 @@ export class Game {
       stumble: r.stumbleTimeLeft > 0 ? 1 - r.stumbleTimeLeft / STUMBLE_SECONDS : 0,
       fall: r.fall,
       crashed: w.state === 'crashed' || w.state === 'gameover',
+      flying: isFlying(r),
     });
+    this.jetpackRig.update(isFlying(r), x, y, z, this.runnerModel.root.rotation.z, this.clock);
+    this.pickupView.sync(w.pickups.coins, w.pickups.items, this.clock, coinGround);
+    this.pickupFx.update(frameSeconds, z, this.fxZ);
+    this.fxZ = z;
     this.chasers.update({
       phase: w.chase.phase,
       gap: lerp(this.previous.gap, w.chase.gap),
@@ -306,7 +333,7 @@ export class Game {
     this.updateSun(x, z);
     this.updateColliderHelper();
     this.updateCamera(frameMs / 1000, false, x, y, z);
-    this.hud.update(w.score, w.highScore, w.multiplier);
+    this.hud.update({ score: w.score, coins: w.coins, best: w.highScore, multiplier: w.multiplier, timers: this.powerUpTimers() });
     this.updatePanels();
     this.renderer.render(this.scene, this.camera);
   }
@@ -331,7 +358,7 @@ export class Game {
     const cam = this.camera.position;
     cam.x += (desiredX - cam.x) * k;
     cam.y += (desiredY - cam.y) * k;
-    cam.z = z + CAMERA_DISTANCE + this.crashView * CRASH_CAMERA_PULLBACK;
+    cam.z = z + CAMERA_DISTANCE + this.crashView * CRASH_CAMERA_PULLBACK + Math.max(0, y - 2) * HEIGHT_PULLBACK;
     this.cameraTarget.x += (x - this.cameraTarget.x) * k;
     this.cameraTarget.y += (CAMERA_LOOK_HEIGHT + y * 0.6 - this.cameraTarget.y) * k;
     this.cameraTarget.z = z - CAMERA_LOOK_AHEAD;
@@ -373,8 +400,46 @@ export class Game {
     this.world.spawner.nextZ = this.runner.z - FIRST_PATTERN_DISTANCE;
   }
 
+  powerUpTimers() {
+    const w = this.world;
+    return POWER_UP_KINDS.filter((kind) => w.powerUps[kind] > 0).map((kind) => ({
+      kind,
+      label: POWER_UP_LABELS[kind],
+      timeLeft: w.powerUps[kind],
+      duration: w.powerUpDurations[kind],
+      color: cssColor(POWER_UP_COLORS[kind]),
+    }));
+  }
+
+  grantPowerUp(kind: PowerUpKind, seconds = POWER_UP_DURATIONS[kind]): void {
+    if (this.world.state !== 'running') return;
+    this.world.grantPowerUp(kind, seconds);
+    this.sfx.play('powerUp');
+  }
+
+  spawnCoins(shape: Exclude<CoinShape, 'roof'>, lane: number, ahead: number, count = 6): number {
+    const p = this.world.pickups;
+    const l = Math.max(-1, Math.min(1, Math.round(lane)));
+    const z = this.runner.z - ahead;
+    const before = p.coins.length;
+    if (shape === 'arc') p.spawnArc(l, z, this.runner.speed);
+    else if (shape === 'sky') p.spawnSkyTrail(l, z, count * 2.4);
+    else p.spawnLine(l, z, count, shape === 'low' ? 0.5 : COIN_HEIGHT, shape);
+    return p.coins.length - before;
+  }
+
+  spawnPowerUp(kind: PowerUpKind, lane: number, ahead: number): number {
+    return this.world.pickups.spawnItem(kind, Math.max(-1, Math.min(1, Math.round(lane))), this.runner.z - ahead).id;
+  }
+
+  clearPickups(): void {
+    this.world.pickups.clear();
+  }
+
   setSpawning(enabled: boolean): void {
     this.world.spawner.enabled = enabled;
+    this.world.pickups.enabled = enabled;
+    if (enabled) this.world.pickups.nextZ = Math.min(this.world.pickups.nextZ, this.runner.z - 40);
     if (enabled) this.world.spawner.nextZ = Math.min(this.world.spawner.nextZ, this.runner.z - 60);
   }
 
@@ -399,9 +464,11 @@ export class Game {
       kinds.set(key, (kinds.get(key) ?? 0) + 1);
     }
     const view = this.obstacleView.stats;
+    const p = w.pickups;
+    const timers = this.powerUpTimers().map((t) => `${t.kind} ${t.timeLeft.toFixed(1)}s`).join('  ') || 'none';
     this.devPanels.set(
       'spawn',
-      `state ${w.state}  distance ${r.distance.toFixed(0)} m  seed ${this.options.seed}\nactive ${w.spawner.active.length}  ${[...kinds].map(([k, n]) => `${k} ${n}`).join('  ')}\nsim pool created ${w.spawner.created}  free ${w.spawner.pooled}  recycled ${w.spawner.recycled}\nmesh pool built ${view.created}  in use ${view.bound}  free ${view.pooled}\nnext pattern at ${(-w.spawner.nextZ).toFixed(0)} m  last ${w.spawner.lastPattern ?? '-'}\nsleepers pooled ${counts.sleepers}  dust bursts ${this.dust.bursts}`,
+      `state ${w.state}  distance ${r.distance.toFixed(0)} m  seed ${this.options.seed}\nactive ${w.spawner.active.length}  ${[...kinds].map(([k, n]) => `${k} ${n}`).join('  ')}\nsim pool created ${w.spawner.created}  free ${w.spawner.pooled}  recycled ${w.spawner.recycled}\nmesh pool built ${view.created}  in use ${view.bound}  free ${view.pooled}\nnext pattern at ${(-w.spawner.nextZ).toFixed(0)} m  last ${w.spawner.lastPattern ?? '-'}\ncoins active ${p.coins.length}  pool ${p.created}/${p.pooled} free  drawn ${this.pickupView.coinsDrawn}  collected ${p.coinsCollected}\npower-up items ${p.items.length}  next >= ${(-p.nextPowerUpZ).toFixed(0)} m  active ${timers}\nsleepers pooled ${counts.sleepers}  dust bursts ${this.dust.bursts}  coin pops ${this.pickupFx.coinPops}`,
     );
   }
 
@@ -418,6 +485,8 @@ export class Game {
   }
 
   get tuning() {
-    return { gravity: GRAVITY, jumpVelocity: JUMP_VELOCITY, rollDuration: ROLL_DURATION, laneWidth: LANE_WIDTH, maxSpeed: MAX_SPEED, standHeight: STAND_HEIGHT, simHz: SIM_HZ };
+    return { gravity: GRAVITY, jumpVelocity: JUMP_VELOCITY, sneakersJumpVelocity: SNEAKERS_JUMP_VELOCITY, rollDuration: ROLL_DURATION, laneWidth: LANE_WIDTH, maxSpeed: MAX_SPEED, standHeight: STAND_HEIGHT, simHz: SIM_HZ };
   }
 }
+
+const coinGround = (coin: Coin): number => (coin.shape === 'roof' ? coin.y - COIN_HEIGHT : 0);

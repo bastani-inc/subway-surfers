@@ -141,3 +141,48 @@ export const softRectShadowTexture = (): THREE.CanvasTexture =>
       }
     ctx.putImageData(image, 0, 0);
   });
+
+export const glowTexture = (): THREE.CanvasTexture =>
+  canvasTexture(128, 128, (ctx) => {
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+    g.addColorStop(0.6, 'rgba(255,255,255,0.15)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+  });
+
+export const sparkleTexture = (): THREE.CanvasTexture =>
+  canvasTexture(64, 64, (ctx) => {
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 10);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const r = i % 2 === 0 ? 31 : 5;
+      ctx.lineTo(32 + Math.cos(angle) * r, 32 + Math.sin(angle) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+  });
+
+export const multiplierTokenTexture = (): THREE.CanvasTexture =>
+  canvasTexture(128, 128, (ctx) => {
+    ctx.fillStyle = '#7a3bff';
+    ctx.beginPath();
+    ctx.arc(64, 64, 62, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#ffd21a';
+    ctx.stroke();
+    ctx.fillStyle = '#fff6d8';
+    ctx.font = '900 64px "Avenir Next", "Trebuchet MS", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('x2', 64, 68);
+  });

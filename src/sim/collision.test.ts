@@ -95,7 +95,7 @@ describe('world collisions', () => {
 
   it('bounces a side scrape back to the previous lane with a stumble and keeps running', () => {
     const world = newWorld();
-    world.spawner.spawn('train', 1, -2 - TRAIN_LENGTH / 2);
+    world.spawner.spawn('train', 1, 2 - TRAIN_LENGTH / 2);
     run(world, 0.1);
     changeLane(world.runner, 1);
     run(world, 0.6);

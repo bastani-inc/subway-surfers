@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FAST_FALL_VELOCITY,
   FIXED_DT,
   GRAVITY,
+  LANE_ARRIVAL_TOLERANCE,
+  MAX_LANE_SWITCH_SECONDS,
   JUMP_VELOCITY,
   LANE_SETTLE_FRACTION,
   LANE_SWITCH_SECONDS,
@@ -108,6 +111,27 @@ describe('lane changes', () => {
     expect(runner.x).toBeCloseTo(LANE_WIDTH, 3);
   });
 
+  it('completes a lane switch within 0.15 s, in both directions and back-to-back', () => {
+    const timeToArrive = (runner: ReturnType<typeof createRunner>, targetX: number) => {
+      let steps = 0;
+      while (Math.abs(runner.x - targetX) > LANE_ARRIVAL_TOLERANCE && steps < 120) {
+        stepRunner(runner, FIXED_DT);
+        steps++;
+      }
+      return steps * FIXED_DT;
+    };
+    const runner = createRunner();
+    changeLane(runner, 1);
+    expect(timeToArrive(runner, LANE_WIDTH)).toBeLessThanOrEqual(MAX_LANE_SWITCH_SECONDS);
+    changeLane(runner, -1);
+    expect(timeToArrive(runner, 0)).toBeLessThanOrEqual(MAX_LANE_SWITCH_SECONDS);
+    changeLane(runner, -1);
+    stepRunner(runner, FIXED_DT);
+    stepRunner(runner, FIXED_DT);
+    changeLane(runner, 1);
+    expect(timeToArrive(runner, 0)).toBeLessThanOrEqual(MAX_LANE_SWITCH_SECONDS);
+  });
+
 });
 
 describe('roll', () => {
@@ -131,15 +155,21 @@ describe('roll', () => {
     const runner = createRunner();
     jump(runner);
     for (let i = 0; i < 10; i++) stepRunner(runner, FIXED_DT);
-    roll(runner);
-    expect(runner.vy).toBeLessThan(0);
+    expect(runner.vy).toBeGreaterThan(0);
+    expect(roll(runner)).toBe(true);
+    expect(runner.vy).toBeLessThanOrEqual(-FAST_FALL_VELOCITY);
+    expect(isRolling(runner)).toBe(false);
     let steps = 0;
     while (!runner.grounded && steps < 600) {
+      expect(runner.vy).toBeLessThanOrEqual(-FAST_FALL_VELOCITY);
       stepRunner(runner, FIXED_DT);
       steps++;
     }
-    expect(steps * FIXED_DT).toBeLessThan(jumpAirtime());
+    expect(steps * FIXED_DT).toBeLessThan(jumpAirtime() / 2);
+    expect(runner.y).toBe(0);
     expect(isRolling(runner)).toBe(true);
+    expect(colliderOf(runner).height).toBe(ROLL_HEIGHT);
+    expect(runner.rollTimeLeft).toBeCloseTo(ROLL_DURATION - FIXED_DT, 9);
   });
 });
 

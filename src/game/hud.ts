@@ -5,16 +5,51 @@ const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
   return node;
 };
 
+export interface PowerUpTimer {
+  kind: string;
+  label: string;
+  timeLeft: number;
+  duration: number;
+  color: string;
+}
+
+interface TimerRow {
+  row: HTMLDivElement;
+  fill: HTMLDivElement;
+  seconds: HTMLSpanElement;
+  shown: string;
+}
+
+export interface HudValues {
+  score: number;
+  coins: number;
+  best: number;
+  multiplier: number;
+  timers: readonly PowerUpTimer[];
+}
+
 export class Hud {
   readonly element = element('div', 'hud');
   private readonly score = element('div', 'hud-score', '0');
+  private readonly coins = element('div', 'hud-coins');
+  private readonly coinCount = element('span', 'hud-coin-count', '0');
   private readonly best = element('div', 'hud-best', 'best 0');
   private readonly multiplier = element('div', 'hud-multiplier', 'x1');
-  private shown = { score: -1, best: -1, multiplier: -1 };
+  private readonly powerUps = element('div', 'hud-powerups');
+  private readonly rows = new Map<string, TimerRow>();
+  private shown = { score: -1, coins: -1, best: -1, multiplier: -1 };
 
   constructor(parent: HTMLElement) {
     this.element.id = 'hud';
-    this.element.append(this.score, this.multiplier, this.best);
+    this.score.id = 'hud-score';
+    this.coins.id = 'hud-coins';
+    this.best.id = 'hud-best';
+    this.multiplier.id = 'hud-multiplier';
+    this.powerUps.id = 'hud-powerups';
+    this.coins.append(element('span', 'hud-coin-icon'), this.coinCount);
+    const top = element('div', 'hud-top');
+    top.append(this.multiplier, this.score);
+    this.element.append(top, this.coins, this.best, this.powerUps);
     this.element.hidden = true;
     parent.append(this.element);
   }
@@ -23,11 +58,65 @@ export class Hud {
     this.element.hidden = !value;
   }
 
-  update(score: number, best: number, multiplier: number): void {
+  update({ score, coins, best, multiplier, timers }: HudValues): void {
     if (score !== this.shown.score) this.score.textContent = String(score);
+    if (coins !== this.shown.coins) {
+      this.coinCount.textContent = String(coins);
+      if (coins > this.shown.coins && this.shown.coins >= 0) this.bump(this.coins);
+    }
     if (best !== this.shown.best) this.best.textContent = `best ${best}`;
-    if (multiplier !== this.shown.multiplier) this.multiplier.textContent = `x${multiplier}`;
-    this.shown = { score, best, multiplier };
+    if (multiplier !== this.shown.multiplier) {
+      this.multiplier.textContent = `x${multiplier}`;
+      this.multiplier.classList.toggle('boosted', multiplier > 1);
+    }
+    this.shown = { score, coins, best, multiplier };
+    this.updateTimers(timers);
+  }
+
+  private bump(node: HTMLElement): void {
+    node.classList.remove('bump');
+    void node.offsetWidth;
+    node.classList.add('bump');
+  }
+
+  private updateTimers(timers: readonly PowerUpTimer[]): void {
+    const live = new Set<string>();
+    for (const timer of timers) {
+      live.add(timer.kind);
+      let row = this.rows.get(timer.kind);
+      if (!row) {
+        row = this.createRow(timer);
+        this.rows.set(timer.kind, row);
+      }
+      const fraction = Math.max(0, Math.min(1, timer.timeLeft / timer.duration));
+      row.fill.style.transform = `scaleX(${fraction.toFixed(3)})`;
+      const text = `${timer.timeLeft.toFixed(1)}s`;
+      if (text !== row.shown) {
+        row.seconds.textContent = text;
+        row.shown = text;
+      }
+      row.row.classList.toggle('ending', timer.timeLeft < 2);
+    }
+    for (const [kind, row] of this.rows) {
+      if (live.has(kind)) continue;
+      row.row.remove();
+      this.rows.delete(kind);
+    }
+  }
+
+  private createRow(timer: PowerUpTimer): TimerRow {
+    const row = element('div', 'hud-power');
+    row.id = `hud-power-${timer.kind}`;
+    row.dataset.kind = timer.kind;
+    row.style.setProperty('--power-color', timer.color);
+    const label = element('span', 'hud-power-label', timer.label);
+    const bar = element('div', 'hud-power-bar');
+    const fill = element('div', 'hud-power-fill');
+    bar.append(fill);
+    const seconds = element('span', 'hud-power-seconds', '');
+    row.append(label, bar, seconds);
+    this.powerUps.append(row);
+    return { row, fill, seconds, shown: '' };
   }
 }
 

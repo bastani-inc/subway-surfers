@@ -69,3 +69,29 @@ The fps samples were all 60.0, and the simulation ran 59.8 steps/s. Screenshots 
 **Verified:** I ran the pipeline from scratch (deleted the outputs first): exit 0, no tracebacks. `verify_models.py` passed 13/13. It confirmed that the triangle counts and bounds re-measured from each GLB match the manifest, that every model is within its budget, that min y = 0, that the origin is bottom center, that the packed texture is present and that the render exists. Open edges remaining: guard 4, building_b 2, all others 0. I looked at every render myself. Each model is upright, faces the right way, is textured and casts a shadow, and none has a slab left.
 
 **Notes for the game:** fronts face -Z (the run direction), so pickups and barriers show their back to the chase camera. Rotate them by π in the game if their front should face the camera. building_b's neon signs have letter-like squiggles from Hunyuan. The guard's face texture is rough. The runner is not rigged yet.
+
+## 2026-10-08 — slice "pickups"
+
+**Done:**
+- Coins (`src/sim/pickups.ts`): pooled and seeded, generated ahead of the runner and kept in step with the obstacles. The shapes are lane lines, jump arcs on the exact gravity parabola (over low barriers or free-standing), low lines under gantries, and roof trails over ramp-car groups. Coins are never placed in lanes with oncoming trains. A coin is collected when its center is within 0.35 m of the runner collider (sphere vs box).
+- Power-ups, each with a timer: jetpack (6 s), super sneakers (10 s), coin magnet (10 s) and score multiplier (12 s).
+  - Jetpack: a critically damped climb to 5.6 m, well above the 3.2 m roofs. Granting it lays a weaving sky coin trail. When the timer ends, Nova falls under gravity. Until she lands and for 0.6 s after, obstacle hits are ignored, and if a train is below her she lands on its roof.
+  - Sneakers: jump velocity 16, so the apex is 4.0 m instead of 2.07 m, still on a gravity arc.
+  - Magnet: coins within 10 m are pulled toward the runner at 45 m/s.
+  - Multiplier: x2 applies to distance points as they are earned, so earlier points are not doubled retroactively. Score = floor(distance points) + coins.
+- Power-up pickups appear on the track at least 140 m apart; no jetpack spawns while flying.
+- Rendering: instanced hex coins with an embossed bolt, spin and soft shadows (`src/game/pickupView.ts`). Pooled placeholder power-up meshes glow with an additive halo, a pulsing ground ring, a bob and a spin. Coin pickups pop and sparkle (`src/game/pickupFx.ts`), and power-ups burst. While flying, Nova wears a jetpack with flickering flames (`src/game/jetpackRig.ts`) and has her own flying pose. The camera pulls back with height.
+- HUD (`src/game/hud.ts`): score, x1/x2 badge, coin count with a bump animation, best score, and one row per active power-up with a draining bar and seconds left.
+- Game feel:
+  - Lane spring ω raised from 32 to 36, so a lane switch is within 0.1 m of the target lane by 0.15 s (about 93% done at 0.12 s), with the body lean.
+  - Down in mid-air sets vy ≤ −16 m/s and the roll starts on landing; this now also works when landing on a roof.
+  - The coin and power-up sounds are wired in. Coin chimes step up in pitch. Audio stays muted until the first input.
+  - The existing start screen and landing dust are kept.
+- `window.__game`: `powerUps` (kind, timeLeft, duration), `powerUpTimers`, `pickups`, `runner.flying`, `runner.safeLanding`, `runner.jumpVelocity`, and new fields in `effects` and `audio`. Added `debug.grantPowerUp`, `spawnCoins`, `spawnPowerUp` and `clearPickups`. `setSpawning` now toggles pickups too.
+- One existing collision test was moved so the train is beside the runner: with the faster lane snap, its old setup became a genuine front-on crash.
+- live/, public/models/ and assets/ were not touched.
+
+**Verified:** `npm run check` passed: typecheck, 60 unit tests and the build, then 18 Chromium e2e tests, all passing.
+- New unit tests (`src/sim/pickups.test.ts`, plus additions to `runner.test.ts`): the collection radius boundary, magnet attraction and radius, multiplier scoring and expiry, sneakers apex vs normal apex (constant −g), jetpack duration, gravity landing and roof landing, generator shapes, pooling and determinism, the lane switch finishing within 0.15 s, and down in mid-air (vy ≤ −16, then rolling on landing).
+- New e2e tests (`e2e/pickups.spec.ts`): the HUD and coin pop/sound, the four power-ups granted through the debug API (each checks its effect plus a visible, draining HUD timer), a glowing pickup collected by running through it, lane-switch timing and the down-cancel roll in the browser, and audio being muted before the first input.
+- Manual Playwright screenshots (`test-results/pickups/`) show coin lines, the glowing pickups, sparkles, the HUD timers and the jetpack sky trail, at 60 fps.

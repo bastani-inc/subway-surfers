@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OBSTACLE_DEFS, type ObstacleKind } from '../sim/obstacleDefs';
-import { colliderOf, isRolling } from '../sim/runner';
+import { POWER_UP_KINDS, type CoinShape, type PowerUpKind } from '../sim/pickups';
+import { colliderOf, isFlying, isRolling } from '../sim/runner';
 import { HIGH_SCORE_KEY } from '../sim/score';
 import type { Game } from './game';
 
@@ -43,6 +44,9 @@ export const createDebugApi = (game: Game) => {
       rollTimeLeft: r.rollTimeLeft,
       stumbling: r.stumbleTimeLeft > 0,
       fall: r.fall,
+      flying: isFlying(r),
+      safeLanding: game.world.invulnerable,
+      jumpVelocity: game.world.jumpVelocity,
       collider: colliderOf(r),
       model: game.runnerModelBounds(),
     };
@@ -52,7 +56,26 @@ export const createDebugApi = (game: Game) => {
     const t = game.cameraTarget;
     return { position: { x: p.x, y: p.y, z: p.z }, target: { x: t.x, y: t.y, z: t.z }, fov: game.camera.fov, runnerInView: game.runnerInView() };
   });
-  define('powerUps', () => []);
+  define('powerUps', () => game.powerUpTimers().map(({ kind, timeLeft, duration }) => ({ kind, timeLeft, duration })));
+  define('powerUpTimers', () => ({ ...game.world.powerUps }));
+  define('pickups', () => {
+    const p = game.world.pickups;
+    return {
+      enabled: p.enabled,
+      coins: p.coins.map((c) => ({ id: c.id, lane: c.lane, shape: c.shape, magnetized: c.magnetized, x: c.x, y: c.y, z: c.z })),
+      items: p.items.map((i) => ({ id: i.id, kind: i.kind, lane: i.lane, x: i.x, y: i.y, z: i.z })),
+      created: p.created,
+      pooled: p.pooled,
+      spawned: p.spawned,
+      recycled: p.recycled,
+      coinsCollected: p.coinsCollected,
+      itemsCollected: p.itemsCollected,
+      shapes: { ...p.shapeCounts },
+      coinsDrawn: game.pickupView.coinsDrawn,
+      itemMeshesBuilt: game.pickupView.itemsBuilt,
+      itemsGlow: game.pickupView.itemsGlow(),
+    };
+  });
   define('fps', () => game.fpsMeter.fps);
   define('frameTimeMs', () => game.fpsMeter.frameMs);
   define('simSteps', () => game.stepper.totalSteps);
@@ -125,8 +148,15 @@ export const createDebugApi = (game: Game) => {
   }));
   define('gameOverVisible', () => game.gameOver.visible);
   define('hudVisible', () => !game.hud.element.hidden);
-  define('effects', () => ({ dustBursts: game.dust.bursts, activeDust: game.dust.active }));
-  define('audio', () => ({ played: game.sfx.played, last: game.sfx.last }));
+  define('effects', () => ({
+    dustBursts: game.dust.bursts,
+    activeDust: game.dust.active,
+    coinPops: game.pickupFx.coinPops,
+    powerUpBursts: game.pickupFx.powerUpBursts,
+    activeSparkles: game.pickupFx.activeSparkles,
+    jetpackVisible: game.jetpackRig.group.visible,
+  }));
+  define('audio', () => ({ played: game.sfx.played, last: game.sfx.last, unlocked: game.sfx.unlocked, counts: { ...game.sfx.counts } }));
   define('startScreenVisible', () => !game.startScreen.element.hidden);
   define('tuning', () => game.tuning);
   Object.defineProperty(api, 'debug', {
@@ -138,6 +168,16 @@ export const createDebugApi = (game: Game) => {
       },
       clearObstacles: () => game.clearObstacles(),
       setSpawning: (enabled: boolean) => game.setSpawning(enabled),
+      grantPowerUp: (kind: PowerUpKind, seconds?: number) => {
+        if (!POWER_UP_KINDS.includes(kind)) throw new Error(`unknown power-up ${kind}`);
+        game.grantPowerUp(kind, seconds);
+      },
+      spawnCoins: (shape: Exclude<CoinShape, 'roof'>, lane: number, ahead: number, count?: number) => game.spawnCoins(shape, lane, ahead, count),
+      spawnPowerUp: (kind: PowerUpKind, lane: number, ahead: number) => {
+        if (!POWER_UP_KINDS.includes(kind)) throw new Error(`unknown power-up ${kind}`);
+        return game.spawnPowerUp(kind, lane, ahead);
+      },
+      clearPickups: () => game.clearPickups(),
     }),
   });
   return Object.freeze(api);

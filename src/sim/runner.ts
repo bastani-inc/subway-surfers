@@ -4,6 +4,7 @@ import {
   FALL_SECONDS,
   FAST_FALL_VELOCITY,
   GRAVITY,
+  JETPACK_OMEGA,
   KNOCKBACK_FRICTION,
   KNOCKBACK_VY,
   KNOCKBACK_VZ,
@@ -53,6 +54,7 @@ export interface RunnerState {
   stumbleTimeLeft: number;
   knockbackVz: number;
   fall: number;
+  flightAltitude: number;
 }
 
 export const createRunner = (): RunnerState => ({
@@ -74,6 +76,7 @@ export const createRunner = (): RunnerState => ({
   stumbleTimeLeft: 0,
   knockbackVz: 0,
   fall: 0,
+  flightAltitude: 0,
 });
 
 export const clampLane = (lane: number): number => Math.max(MIN_LANE, Math.min(MAX_LANE, lane));
@@ -81,6 +84,8 @@ export const clampLane = (lane: number): number => Math.max(MIN_LANE, Math.min(M
 export const laneX = (lane: number): number => lane * LANE_WIDTH;
 
 export const isRolling = (runner: RunnerState): boolean => runner.rollTimeLeft > 0;
+
+export const isFlying = (runner: RunnerState): boolean => runner.flightAltitude > 0;
 
 export const changeLane = (runner: RunnerState, direction: -1 | 1): void => {
   const next = clampLane(runner.lane + direction);
@@ -110,6 +115,20 @@ export const knockBack = (runner: RunnerState): void => {
   runner.vy = KNOCKBACK_VY;
   runner.grounded = false;
   runner.fall = 0;
+  runner.flightAltitude = 0;
+};
+
+export const takeOff = (runner: RunnerState, altitude: number): void => {
+  runner.flightAltitude = altitude;
+  runner.grounded = false;
+  runner.rollTimeLeft = 0;
+  runner.rollQueued = false;
+};
+
+export const endFlight = (runner: RunnerState): void => {
+  if (!isFlying(runner)) return;
+  runner.flightAltitude = 0;
+  runner.vy = Math.min(runner.vy, 0);
 };
 
 export const jump = (runner: RunnerState, velocity = JUMP_VELOCITY): boolean => {
@@ -122,13 +141,15 @@ export const jump = (runner: RunnerState, velocity = JUMP_VELOCITY): boolean => 
   return true;
 };
 
-export const roll = (runner: RunnerState): void => {
+export const roll = (runner: RunnerState): boolean => {
+  if (isFlying(runner)) return false;
   if (runner.grounded) {
     runner.rollTimeLeft = ROLL_DURATION;
-    return;
+    return true;
   }
   runner.vy = Math.min(runner.vy, -FAST_FALL_VELOCITY);
   runner.rollQueued = true;
+  return true;
 };
 
 export const speedAt = (elapsed: number): number => {
@@ -143,6 +164,16 @@ const stepLateral = (runner: RunnerState, dt: number): void => {
   const decay = Math.exp(-LANE_OMEGA * dt);
   runner.x = laneX(runner.lane) + (offset + carry * dt) * decay;
   runner.vx = (runner.vx - LANE_OMEGA * carry * dt) * decay;
+};
+
+const stepFlight = (runner: RunnerState, dt: number): void => {
+  const offset = runner.y - runner.flightAltitude;
+  const carry = runner.vy + JETPACK_OMEGA * offset;
+  const decay = Math.exp(-JETPACK_OMEGA * dt);
+  runner.y = runner.flightAltitude + (offset + carry * dt) * decay;
+  runner.vy = (runner.vy - JETPACK_OMEGA * carry * dt) * decay;
+  runner.grounded = false;
+  runner.maxJumpHeight = Math.max(runner.maxJumpHeight, runner.y);
 };
 
 const stepVertical = (runner: RunnerState, dt: number, support: SupportProbe): void => {
@@ -178,7 +209,8 @@ export const stepRunner = (runner: RunnerState, dt: number, support: SupportProb
   runner.distance += runner.speed * dt;
   runner.z = -runner.distance;
   stepLateral(runner, dt);
-  stepVertical(runner, dt, support);
+  if (isFlying(runner)) stepFlight(runner, dt);
+  else stepVertical(runner, dt, support);
   if (runner.rollTimeLeft > 0) runner.rollTimeLeft = Math.max(0, runner.rollTimeLeft - dt);
   if (runner.stumbleTimeLeft > 0) runner.stumbleTimeLeft = Math.max(0, runner.stumbleTimeLeft - dt);
 };

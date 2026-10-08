@@ -5,6 +5,12 @@ export class Sfx {
   private master: GainNode | null = null;
   played = 0;
   last: SoundId | null = null;
+  readonly counts: Record<SoundId, number> = { coin: 0, jump: 0, roll: 0, powerUp: 0, stumble: 0, crash: 0 };
+  private coinStep = 0;
+
+  get unlocked(): boolean {
+    return this.context !== null && this.context.state !== 'suspended';
+  }
 
   unlock(): void {
     if (!this.context) {
@@ -21,6 +27,7 @@ export class Sfx {
   play(id: SoundId): void {
     this.played++;
     this.last = id;
+    this.counts[id]++;
     const ctx = this.context;
     const out = this.master;
     if (!ctx || !out) return;
@@ -32,10 +39,12 @@ export class Sfx {
       case 'roll':
         this.noise(ctx, out, t, 0.22, 1800, 400, 0.5);
         break;
-      case 'coin':
-        this.tone(ctx, out, 'sine', t, 0.07, [1320, 1320], 0.3);
-        this.tone(ctx, out, 'sine', t + 0.06, 0.12, [1980, 1980], 0.3);
+      case 'coin': {
+        const lift = 1 + (this.coinStep++ % 4) * 0.06;
+        this.tone(ctx, out, 'sine', t, 0.06, [1320 * lift, 1320 * lift], 0.22);
+        this.tone(ctx, out, 'sine', t + 0.05, 0.1, [1980 * lift, 1980 * lift], 0.22);
         break;
+      }
       case 'powerUp':
         [523, 659, 784, 1047].forEach((f, i) => this.tone(ctx, out, 'triangle', t + i * 0.06, 0.1, [f, f], 0.3));
         break;

@@ -48,6 +48,7 @@ export interface RunnerPose {
   stumble: number;
   fall: number;
   crashed: boolean;
+  flying: boolean;
 }
 
 interface Leg {
@@ -169,6 +170,7 @@ export class RunnerModel {
     else if (pose.crashed) this.poseFall(pose.fall, pose.time);
     else if (pose.stumble > 0 && pose.grounded) this.poseStumble(pose.stumble, pose.distance);
     else if (pose.rollTimeLeft > 0) this.poseRoll(1 - pose.rollTimeLeft / ROLL_DURATION);
+    else if (pose.flying) this.poseFly(pose.time);
     else if (!pose.grounded) this.poseAir(pose.vy);
     else this.poseRun(pose.distance);
   }
@@ -231,6 +233,14 @@ export class RunnerModel {
     this.root.rotation.x = fall * (Math.PI / 2 - 0.12);
     const lowest = this.lowestPointAboveRoot();
     if (lowest < 0) this.root.position.y -= lowest;
+  }
+
+  private poseFly(time: number): void {
+    const kick = Math.sin(time * 9) * 0.12;
+    this.setLimbs(-0.25 + kick, -0.25 - kick, 0.45, 0.45, -0.3);
+    this.leftArm.rotation.z = -0.35;
+    this.rightArm.rotation.z = 0.35;
+    this.hips.position.y = HIP_HEIGHT;
   }
 
   private poseAir(vy: number): void {

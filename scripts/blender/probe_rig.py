@@ -72,14 +72,18 @@ def probe_bvh(path):
     leg = (rest["LeftUpLeg"] - rest["LeftFoot"]).length
     print(f"fps={sc.render.fps} frames={sc.frame_start}..{sc.frame_end} leg(upleg->foot)={leg:.3f} hip_height_rest={rest['LeftUpLeg'].z - min(v.z for v in rest.values()):.3f}")
     rows = []
-    for f in range(sc.frame_start, sc.frame_end + 1):
+    f0, f1 = (int(v) for v in arm.animation_data.action.frame_range)
+    step = int(args[2]) if len(args) > 2 else 6
+    for f in range(f0, f1 + 1):
         sc.frame_set(f)
         h = arm.matrix_world @ hips.head
         lf = arm.matrix_world @ arm.pose.bones["LeftToeBase"].head
         rf = arm.matrix_world @ arm.pose.bones["RightToeBase"].head
-        rows.append((f, h, lf, rf))
-    for f, h, lf, rf in rows[::6]:
-        print(f"f={f:4d} hip=({h.x:7.2f},{h.y:7.2f},{h.z:6.2f}) Ltoe_z={lf.z:6.2f} Rtoe_z={rf.z:6.2f}")
+        hd = arm.matrix_world @ arm.pose.bones["Head"].head
+        up = (arm.matrix_world.to_3x3() @ arm.pose.bones["LowerBack"].matrix.to_3x3() @ Vector((0, 1, 0)))
+        rows.append((f, h, lf, rf, hd, up))
+    for f, h, lf, rf, hd, up in rows[::step]:
+        print(f"f={f:4d} hip=({h.x:7.2f},{h.y:7.2f},{h.z:6.2f}) head_z={hd.z:6.2f} back_up=({up.x:+.2f},{up.y:+.2f},{up.z:+.2f}) Ltoe_z={lf.z:6.2f} Rtoe_z={rf.z:6.2f}")
 
 
 if mode == "mesh":

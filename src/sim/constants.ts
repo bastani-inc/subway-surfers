@@ -13,7 +13,9 @@ export const FAST_FALL_VELOCITY = 16;
 
 export const LANE_SWITCH_SECONDS = 0.12;
 export const LANE_SETTLE_FRACTION = 0.9;
-export const LANE_OMEGA = 32;
+export const LANE_OMEGA = 36;
+export const LANE_ARRIVAL_TOLERANCE = 0.1;
+export const MAX_LANE_SWITCH_SECONDS = 0.15;
 
 export const STAND_HEIGHT = 1.7;
 export const ROLL_HEIGHT = 0.8;
@@ -60,3 +62,19 @@ export const FALL_SECONDS = 0.45;
 export const STUMBLE_SECONDS = 0.45;
 export const SCRAPE_BOUNCE_VX = 5;
 export const GAME_OVER_DELAY = 0.9;
+
+export const SNEAKERS_JUMP_VELOCITY = 16;
+export const JETPACK_ALTITUDE = 5.6;
+export const JETPACK_OMEGA = 5;
+export const JETPACK_LANDING_GRACE = 0.6;
+
+export const COIN_RADIUS = 0.35;
+export const COIN_HEIGHT = 0.9;
+export const COIN_LOW_HEIGHT = 0.5;
+export const COIN_SPACING = 2.4;
+export const SKY_COIN_HEIGHT = JETPACK_ALTITUDE + 0.85;
+export const POWER_UP_RADIUS = 0.6;
+export const POWER_UP_HEIGHT = 1.0;
+export const MAGNET_RADIUS = 10;
+export const MAGNET_PULL_SPEED = 45;
+export const SCORE_MULTIPLIER = 2;
