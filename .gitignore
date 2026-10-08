@@ -1,0 +1,6 @@
+node_modules
+dist
+live
+test-results
+playwright-report
+assets/raw
